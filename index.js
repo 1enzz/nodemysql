@@ -99,12 +99,10 @@ app.post('/api/colaboradores', (req, res) => {
 
 //insert empresa
 app.post('/api/empresa', (req, res) => {
-    const { nomeempresa, contatoempresa, emailempresa, senhaempresa } = req.body;
-    if(!nomeempresa){
-        return res.status(500).json({ message: 'Não é possível registrar o a empresa sem que seu nome esteja preenchido' });
-    }
-    const query = 'INSERT INTO tbempresa (nomeempresa, contatoempresa, emailempresa, senhaempresa) VALUES (?, ?, ?, ?)';
-    pool.query(query, [nomeempresa, contatoempresa, emailempresa, senhaempresa], (error, results, fields) => {
+    const { nomeempresa, contatoempresa, emailempresa, senhaempresa, cnpjempresa } = req.body;
+
+    const query = 'INSERT INTO tbempresa (nomeempresa, contatoempresa, emailempresa, senhaempresa, cnpjempresa) VALUES (?, ?, ?, ?, ?)';
+    pool.query(query, [nomeempresa, contatoempresa, emailempresa, senhaempresa, cnpjempresa], (error, results, fields) => {
         
         if (error) {
             console.error(error);
