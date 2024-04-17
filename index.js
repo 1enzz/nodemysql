@@ -58,12 +58,49 @@ app.post('/api/loginEmpresa', (req, res)=>{
 })
 
 
+//login coolaboradores
+app.post('/api/loginColaborador', (req, res)=>{
+    const {emailColaborador, senhaColaborador} = req.body;
+    pool.query('SELECT idColaborador, nomeColaborador, senhaColaborador FROM tbcolaborador where emailColaborador = ?', [emailColaborador], (error,result) =>{
+        //quando o if tem como parametro somente uma variavel, verificamos se essa variavel retorna true ou false
+        //nessa relação com banco quando da algum erro no banco, error retorna true sempre por padrão
+        if(error){
+            return res.status(500).json({ message: 'Erro ao fazer login' });
+        }
+
+
+        //aqui verifica se houve alguma resposta da nossa requisição inicial, se houve algum retorno do select com cnpj
+        //se não houve, o result.lenght vai ser 0 e vai retornar para a aplicação erro
+        if(result.length === 0){
+            return res.status(401).json({ message: 'Email ou senha incorretos' });
+
+        }
+        //caso seja maior q zero, vamos pegar a primeira posição do nosso array q armazena o resultado da query
+        //e armazenar em uma variavel chamada resquery para manipular os dados de retorno mais facilmente
+
+        const resquery = result[0];
+        
+
+        //aqui verificamos se a senha q o nosso usuario enviou da tela é diferente da que retornou do banco de dados, de acordo com o email fornecido
+        //se nao for, retorna um código de erro junto com a mensagem de erro
+        if(senhaColaborador !== resquery.senhaColaborador){
+            return res.status(401).json({ message: 'Email ou senha incorretos' });
+        }
+
+        //caso seja igual, pegamos o id e o nome enviados na query e mandamos de volta para tela
+
+        const id = resquery.idColaborador;
+        const nmColaborador = resquery.nomeColaborador;
+        return res.status(200).json({retorno: 'Login bem sucedido', nmColaborador,id});
+    })
+})
+
 //select colaboradores
 app.get('/api/colaboradores', (req, res) => {
     pool.query('SELECT * FROM tbcolaborador', (error, results) => {
         if (error) {
             console.error(error);
-            return res.status(500).json({ message: 'Erro ao buscar colaboradores' });
+            return res.status(500);
         }
         return res.status(200).json(results);
     });
