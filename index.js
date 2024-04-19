@@ -61,7 +61,7 @@ app.post('/api/loginEmpresa', (req, res)=>{
 //login coolaboradores
 app.post('/api/loginColaborador', (req, res)=>{
     const {emailColaborador, senhaColaborador} = req.body;
-    pool.query('SELECT idColaborador, nomeColaborador, senhaColaborador FROM tbcolaborador where emailColaborador = ?', [emailColaborador], (error,result) =>{
+    pool.query('SELECT idColaborador, nomeColaborador, senhaColaborador, e.nomeEmpresa as empresa FROM tbcolaborador c inner join tbempresa e on e.idempresa = c.idempresa where emailColaborador = ?', [emailColaborador], (error,result) =>{
         //quando o if tem como parametro somente uma variavel, verificamos se essa variavel retorna true ou false
         //nessa relação com banco quando da algum erro no banco, error retorna true sempre por padrão
         if(error){
@@ -91,7 +91,8 @@ app.post('/api/loginColaborador', (req, res)=>{
 
         const id = resquery.idColaborador;
         const nmColaborador = resquery.nomeColaborador;
-        return res.status(200).json({retorno: 'Login bem sucedido', nmColaborador,id});
+        const nmEmpresa = resquery.empresa;
+        return res.status(200).json({retorno: 'Login bem sucedido', nmColaborador,id, nmEmpresa} );
     })
 })
 
