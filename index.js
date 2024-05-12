@@ -4,10 +4,12 @@ const {
 
 const express = require('express');
 const bodyParser = require('body-parser');
-
+const cors = require('cors');
 const app = express();
+
 const port = 3000; // Escolha a porta que deseja usar para o servidor
 app.use(bodyParser.json());
+app.use(cors());
 
 
 const pool = createPool({
