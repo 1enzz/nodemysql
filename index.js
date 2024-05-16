@@ -152,6 +152,43 @@ app.post('/api/empresa', (req, res) => {
     });
 });
 
+//insert departamento
+app.post('/api/departamento', (req, res) => {
+    const departamentos = req.body; // Recebe o array JSON de departamentos
+
+    // ve se o item enviado é diferente de array ou se o tamanho é igual a zero, se for ele retorna erro se nao prossegue a insercao
+    if (!Array.isArray(departamentos) || departamentos.length === 0) {
+        return res.status(400).json({ message: 'Nenhum departamento fornecido para inserção' });
+    }
+
+    const query = 'INSERT INTO tbdepartamento (nomeDepartamento, idEmpresa) VALUES ?'; 
+    const values = departamentos.map(departamento => [departamento.nomeDepartamento, departamento.idEmpresa]); //extrai somente os valores q estavam contidos na variavel departamento, q recebia o json do corpo da requisicao
+    pool.query(query, [values], (error, results, fields) => {
+        if (error) {
+            console.error(error);
+            return res.status(500).json({ message: 'Erro ao inserir departamentos' });
+        }
+        return res.status(200).json({ message: 'Departamentos cadastrados com sucesso' });
+    });
+});
+
+
+app.post('/api/retornaDepartamentos', (req, res) =>{
+    const {idEmpresa} = req.body;
+    pool.query('SELECT idDepartamento, d.idDepartamento as Id, d.nomeDepartamento as Departamento, c.nomecolaborador as Responsavel FROM tbdepartamento d left JOIN tbcolaborador c ON c.idcolaborador = d.idcolaboradorresponsavel where d.idEmpresa = ?', [idEmpresa], (error,result) =>{
+        if(error){
+            return res.status(500).json({ message: 'Erro ao fazer login' });
+        }
+
+        let arraydata = []
+        const quant = result.length;
+        for(i = 0; i < result.length; i++){
+            arraydata.push( result[i] )
+        }
+        res.status(200).json({ departamentos: arraydata, total :quant });
+    })
+
+});
 app.listen(port, () => {
     console.log(`Servidor Node.js está executando na porta ${port}`);
 });
