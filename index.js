@@ -63,7 +63,11 @@ app.post('/api/loginEmpresa', (req, res)=>{
 //login coolaboradores
 app.post('/api/loginColaborador', (req, res)=>{
     const {emailColaborador, senhaColaborador} = req.body;
-    pool.query('SELECT idColaborador, nomeColaborador, senhaColaborador, e.nomeEmpresa as empresa FROM tbcolaborador c inner join tbempresa e on e.idempresa = c.idempresa where emailColaborador = ?', [emailColaborador], (error,result) =>{
+    pool.query(`SELECT  idColaborador, 
+                        nomeColaborador, 
+                        senhaColaborador, 
+                        e.nomeEmpresa as empresa 
+                FROM tbcolaborador c inner join tbempresa e on e.idempresa = c.idempresa where emailColaborador = ?`, [emailColaborador], (error,result) =>{
         //quando o if tem como parametro somente uma variavel, verificamos se essa variavel retorna true ou false
         //nessa relação com banco quando da algum erro no banco, error retorna true sempre por padrão
         if(error){
@@ -175,11 +179,15 @@ app.post('/api/departamento', (req, res) => {
 
 app.post('/api/retornaDepartamentos', (req, res) =>{
     const {idEmpresa} = req.body;
-    pool.query('SELECT idDepartamento, d.idDepartamento as Id, d.nomeDepartamento as Departamento, c.nomecolaborador as Responsavel FROM tbdepartamento d left JOIN tbcolaborador c ON c.idcolaborador = d.idcolaboradorresponsavel where d.idEmpresa = ?', [idEmpresa], (error,result) =>{
+    pool.query(`SELECT  idDepartamento, 
+                        d.idDepartamento as Id, 
+                        d.nomeDepartamento as Departamento, 
+                        c.nomecolaborador as Responsavel 
+                FROM tbdepartamento d left JOIN tbcolaborador c ON c.idcolaborador = d.idcolaboradorresponsavel 
+                where d.idEmpresa = ?`, [idEmpresa], (error,result) =>{
         if(error){
             return res.status(500).json({ message: 'Erro ao fazer login' });
         }
-
         let arraydata = []
         const quant = result.length;
         for(i = 0; i < result.length; i++){
@@ -189,6 +197,27 @@ app.post('/api/retornaDepartamentos', (req, res) =>{
     })
 
 });
+
+app.post('/api/retornaParametrosTelas', (req,res) =>{
+    const {idEmpresa} = req.body;
+    pool.query(`select  (select count(d.iddepartamento) 
+                            from tbdepartamento d where d.idempresa = e.idempresa) as quantd,
+                        (select count(cg.idcargo) 
+                            from tbcargo cg where cg.idempresa = e.idempresa) as quantcg, 
+                        (select count(cl.idcolaborador) 
+                            from tbcolaborador cl where cl.idempresa = e.idempresa) as quantcl,
+                        (select count(pg.idpergunta)
+                            from tbpergunta pg where pg.idempresacadastro = e.idempresa) as quantpg 
+                from tbempresa e where e.idempresa = ?`, [idEmpresa], (error, result) =>{
+                
+                    if(error){
+                        return res.status(500).json({ message: 'Erro ao buscar empresas' });
+                    }
+
+                    const retorno = result[0]
+                    res.status(200).json({retorno})
+            })
+})
 app.listen(port, () => {
     console.log(`Servidor Node.js está executando na porta ${port}`);
 });
