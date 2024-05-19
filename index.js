@@ -176,10 +176,54 @@ app.post('/api/departamento', (req, res) => {
     });
 });
 
+//insert cargo
+app.post('/api/cadastraCargo', (req, res) => {
+    const cargos = req.body; // Recebe o array JSON de departamentos
+
+    // ve se o item enviado é diferente de array ou se o tamanho é igual a zero, se for ele retorna erro se nao prossegue a insercao
+    if (!Array.isArray(cargos) || cargos.length === 0) {
+        return res.status(400).json({ message: 'Nenhum departamento fornecido para inserção' });
+    }
+
+    const query = 'INSERT INTO tbcargo (nomeCargo, idDepartamento, idEmpresa ) VALUES ?'; 
+    const values = cargos.map(cargo => [cargo.nomeCargo, cargo.idDepartamento, cargo.idEmpresa ]); //extrai somente os valores q estavam contidos na variavel departamento, q recebia o json do corpo da requisicao
+    pool.query(query, [values], (error, results, fields) => {
+        if (error) {
+            console.error(error);
+            return res.status(500).json({ message: 'Erro ao inserir departamentos' });
+        }
+        return res.status(200).json({ message: 'Departamentos cadastrados com sucesso' });
+    });
+});
+
+//retorna cargos
+app.post('/api/retornaCargos', (req, res) =>{
+    const {idEmpresa} = req.body;
+    pool.query(`SELECT 	idcargo as Id, 
+                        c.nomecargo as Cargo, 
+                        d.nomeDepartamento as Departamento 
+                FROM tbcargo c 
+                INNER JOIN tbdepartamento d on d.iddepartamento = c.iddepartamento
+                WHERE c.idempresa = ?`, [idEmpresa], (error,result) =>{
+        if(error){
+            console.log(error)
+            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
+           
+        }
+        let arraydata = []
+        const quant = result.length;
+        for(i = 0; i < result.length; i++){
+            arraydata.push( result[i] )
+        }
+        res.status(200).json({ cargos: arraydata, total :quant });
+    })
+
+});
+
 
 app.post('/api/retornaDepartamentos', (req, res) =>{
     const {idEmpresa} = req.body;
-    pool.query(`SELECT  idDepartamento, 
+    pool.query(`SELECT
                         d.idDepartamento as Id, 
                         d.nomeDepartamento as Departamento, 
                         c.nomecolaborador as Responsavel 
@@ -218,6 +262,22 @@ app.post('/api/retornaParametrosTelas', (req,res) =>{
                     res.status(200).json({retorno})
             })
 })
+
+app.post('/api/retornaDepartamentoSelect', (req,res) =>{
+
+
+    const {idEmpresa} = req.body;
+    pool.query(`select idDepartamento, nomeDepartamento from tbdepartamento where idempresa = ?`, [idEmpresa], (error, result) =>{
+                
+                    if(error){
+                        return res.status(500).json({ message: 'Erro ao buscar empresas' });
+                    }
+
+                    const retorno = result
+                    res.status(200).json({retorno})
+            })
+})
+
 app.listen(port, () => {
     console.log(`Servidor Node.js está executando na porta ${port}`);
 });
