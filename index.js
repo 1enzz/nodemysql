@@ -126,12 +126,15 @@ app.get('/api/empresa',(req,res) =>{
 
 // insert colaboradores
 app.post('/api/colaboradores', (req, res) => {
-    const { nomecolaborador, cargocolaborador, emailcolaborador, idempresa } = req.body;
-    if(!nomecolaborador || !idempresa){
-        return res.status(500).json({ message: 'Não é possível registrar o colaborador sem que seu nome ou a empresa a qual pertence, estejam preenchidos' });
+    const colaboradores = req.body;
+
+    if (!Array.isArray(colaboradores) || colaboradores.length === 0) {
+        return res.status(400).json({ message: 'Nenhum departamento fornecido para inserção' });
     }
-    const query = 'INSERT INTO tbcolaborador (nomecolaborador, cargocolaborador, emailcolaborador, idEmpresa) VALUES (?, ?, ?, ?)';
-    pool.query(query, [nomecolaborador, cargocolaborador, emailcolaborador, idempresa], (error, results, fields) => {
+
+    const valores = colaboradores.map(colaborador => [colaborador.nomeColaborador, colaborador.cargoColaborador, colaborador.emailColaborador, colaborador.senhaColaboradorPadrao, colaborador.idadeColaborador, colaborador.sexoColaborador, colaborador.idEmpresa]);
+    const query = ` INSERT INTO tbcolaborador (nomeColaborador, cargoColaborador, emailColaborador, senhaColaboradorPadrao, idadeColaborador, sexoColaborador, idEmpresa) VALUES ?`;
+    pool.query(query, [valores], (error, results, fields) => {
         
         if (error) {
             console.error(error);
@@ -242,6 +245,31 @@ app.post('/api/retornaDepartamentos', (req, res) =>{
 
 });
 
+app.post('/api/retornaColaboradores', (req, res) =>{
+    const {idEmpresa} = req.body;
+    pool.query(`select 	cl.idcolaborador as Id,
+                        cl.nomecolaborador as Nome,
+                        cg.nomeCargo as Cargo,
+                        cl.emailcolaborador as Email,
+                        cl.idadeColaborador as Idade
+                from tbcolaborador cl 
+                left join tbcargo cg on cg.idcargo = cl.cargocolaborador
+                where cl.idempresa = ? order by 1 desc`, [idEmpresa], (error,result) =>{
+        if(error){
+            console.log(error)
+            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
+           
+        }
+        let arraydata = []
+        const quant = result.length;
+        for(i = 0; i < result.length; i++){
+            arraydata.push( result[i] )
+        }
+        res.status(200).json({ colaboradores: arraydata});
+    })
+
+});
+
 app.post('/api/retornaParametrosTelas', (req,res) =>{
     const {idEmpresa} = req.body;
     pool.query(`select  (select count(d.iddepartamento) 
@@ -267,7 +295,7 @@ app.post('/api/retornaDepartamentoSelect', (req,res) =>{
 
 
     const {idEmpresa} = req.body;
-    pool.query(`select idDepartamento, nomeDepartamento from tbdepartamento where idempresa = ?`, [idEmpresa], (error, result) =>{
+    pool.query(`select idDepartamento as Id, nomeDepartamento as Departamento from tbdepartamento where idempresa = ?`, [idEmpresa], (error, result) =>{
                 
                     if(error){
                         return res.status(500).json({ message: 'Erro ao buscar empresas' });
@@ -277,6 +305,28 @@ app.post('/api/retornaDepartamentoSelect', (req,res) =>{
                     res.status(200).json({retorno})
             })
 })
+
+
+app.post('/api/retornaCargoSelect', (req, res) =>{
+    const {idEmpresa} = req.body;
+    pool.query(`SELECT 	idcargo as Id, 
+                        c.nomecargo as Cargo 
+                FROM tbcargo c 
+                WHERE c.idempresa = ?`, [idEmpresa], (error,result) =>{
+        if(error){
+            console.log(error)
+            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
+           
+        }
+        let arraydata = []
+        const quant = result.length;
+        for(i = 0; i < result.length; i++){
+            arraydata.push( result[i] )
+        }
+        res.status(200).json({ cargos: arraydata});
+    })
+
+});
 
 app.listen(port, () => {
     console.log(`Servidor Node.js está executando na porta ${port}`);
