@@ -434,6 +434,30 @@ app.post('/api/cadastraQuestionario', (req, res) =>{
 
 });
 
+
+app.post('/api/retornaQuestionarios', (req, res) =>{
+    const {idEmpresa} = req.body;
+    pool.query(`select 	idQuestionario as Id,
+                        nomeQuestionario as Nome,
+                        c.nomeCategoria as Categoria
+                from tbquestionario q 
+                inner join tbcategoria c on c.idcategoria = q.idcategoria
+                where idempresa = ?`, [idEmpresa], (error,result) =>{
+        if(error){
+            console.log(error)
+            return res.status(500).json({ message: 'Erro ao trazer questionarios' });
+           
+        }
+        let arraydata = []
+        const quant = result.length;
+        for(i = 0; i < result.length; i++){
+            arraydata.push( result[i] )
+        }
+        res.status(200).json({ questionarios: arraydata});
+    })
+
+});
+
 app.listen(port, () => {
     console.log(`Servidor Node.js está executando na porta ${port}`);
 });
