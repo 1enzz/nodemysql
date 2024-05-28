@@ -199,6 +199,27 @@ app.post('/api/cadastraCargo', (req, res) => {
     });
 });
 
+//insert perguntas
+app.post('/api/cadastraPerguntas', (req, res) => {
+    const perguntas = req.body; 
+
+
+    if (!Array.isArray(perguntas)) {
+        return res.status(400).json({ message: 'Nenhuma pergunta fornecida para inserção' });
+    }
+
+    const query = 'INSERT INTO tbpergunta (dsPergunta, notaPergunta, idEmpresa, idCategoria ) VALUES ?'; 
+    const values = perguntas.map(pergunta => [pergunta.dsPergunta, pergunta.notaPergunta, pergunta.idEmpresa, pergunta.idCategoria ]); 
+    pool.query(query, [values], (error, results, fields) => {
+        if (error) {
+            console.error(error);
+            return res.status(500).json({ message: 'Erro ao inserir perguntas' });
+        }
+        return res.status(200).json({ message: 'Perguntas cadastradas com sucesso' });
+    });
+});
+
+
 //retorna cargos
 app.post('/api/retornaCargos', (req, res) =>{
     const {idEmpresa} = req.body;
@@ -279,11 +300,13 @@ app.post('/api/retornaParametrosTelas', (req,res) =>{
                         (select count(cl.idcolaborador) 
                             from tbcolaborador cl where cl.idempresa = e.idempresa) as quantcl,
                         (select count(pg.idpergunta)
-                            from tbpergunta pg where pg.idempresacadastro = e.idempresa) as quantpg 
+                            from tbpergunta pg where pg.idempresa = e.idempresa) as quantpg 
                 from tbempresa e where e.idempresa = ?`, [idEmpresa], (error, result) =>{
                 
                     if(error){
+                        console.log(error)
                         return res.status(500).json({ message: 'Erro ao buscar empresas' });
+                        
                     }
 
                     const retorno = result[0]
@@ -325,6 +348,89 @@ app.post('/api/retornaCargoSelect', (req, res) =>{
         }
         res.status(200).json({ cargos: arraydata});
     })
+
+});
+
+
+
+app.get('/api/retornaCategoriaSelect', (req, res) =>{
+    pool.query(`SELECT 	idCategoria as Id, 
+                        nomeCategoria as Categoria 
+                FROM tbcategoria c `,(error,result) =>{
+        if(error){
+            console.log(error)
+            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
+           
+        }
+        let arraydata = []
+        for(i = 0; i < result.length; i++){
+            arraydata.push( result[i] )
+        }
+        res.status(200).json({ categorias: arraydata});
+    })
+
+});
+
+
+
+app.post('/api/retornaPerguntas', (req, res) =>{
+    const {idEmpresa} = req.body;
+    pool.query(`select 	p.idPergunta as Id,
+                        p.dsPergunta as Pergunta,
+                        c.nomeCategoria as Categoria
+                from tbpergunta p 
+                inner join tbcategoria c on c.idcategoria = p.idcategoria
+                where p.idempresa = ? order by 1 desc`, [idEmpresa], (error,result) =>{
+        if(error){
+            console.log(error)
+            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
+           
+        }
+        let arraydata = []
+        const quant = result.length;
+        for(i = 0; i < result.length; i++){
+            arraydata.push( result[i] )
+        }
+        res.status(200).json({ perguntas: arraydata});
+    })
+
+});
+
+
+app.post('/api/retornaPerguntasCategoria', (req, res) =>{
+    const {idEmpresa, idCategoria} = req.body;
+    pool.query(`select 	idPergunta as Id,
+                        dsPergunta as Pergunta
+                from tbpergunta where idempresa = ? and idcategoria = ?`, [idEmpresa, idCategoria], (error,result) =>{
+        if(error){
+            console.log(error)
+            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
+           
+        }
+        let arraydata = []
+        const quant = result.length;
+        for(i = 0; i < result.length; i++){
+            arraydata.push( result[i] )
+        }
+        res.status(200).json({ perguntas: arraydata});
+    })
+
+});
+
+
+app.post('/api/cadastraQuestionario', (req, res) =>{
+    const { nomeQuestionario, idEmpresa, idCategoria, idPergunta1, idPergunta2, idPergunta3, idPergunta4,idPergunta5 } = req.body;
+
+    const query = ` INSERT INTO tbquestionario (nomeQuestionario, idEmpresa, idCategoria, idPergunta1, idPergunta2, idPergunta3, idPergunta4,idPergunta5) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+    pool.query(query, [nomeQuestionario, idEmpresa, idCategoria, idPergunta1, idPergunta2, idPergunta3, idPergunta4,idPergunta5], (error, results, fields) => {
+        
+        if (error) {
+            console.error(error);
+            return res.status(500).json({ message: 'Erro ao inserir questionario' });
+        }
+        return res.status(200).json({ message: 'Questionario cadastrado com sucesso' });
+    });
 
 });
 
