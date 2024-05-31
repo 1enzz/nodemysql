@@ -432,7 +432,6 @@ app.post('/api/enviarResposta', async (req, res) => {
 
 
 
-
 app.listen(port, () => {
     console.log(`Servidor Node.js está executando na porta ${port}`);
 });
