@@ -1,6 +1,6 @@
 const {
     createPool
-} = require('mysql');
+} = require('mysql2/promise');
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -11,7 +11,6 @@ const port = 3000; // Escolha a porta que deseja usar para o servidor
 app.use(bodyParser.json());
 app.use(cors());
 
-
 const pool = createPool({
     host: "localhost",
     user: "adm",
@@ -19,448 +18,421 @@ const pool = createPool({
     database: "bdclimup",
     connectionLimit: 10,
     insecureAuth: true
-})
-
-
-//login empresa
-app.post('/api/loginEmpresa', (req, res)=>{
-    const {cnpjEmpresa, senhaEmpresa} = req.body;
-    pool.query('SELECT idEmpresa, nomeEmpresa, senhaEmpresa FROM tbempresa where cnpjEmpresa = ?', [cnpjEmpresa], (error,result) =>{
-        //quando o if tem como parametro somente uma variavel, verificamos se essa variavel retorna true ou false
-        //nessa relação com banco quando da algum erro no banco, error retorna true sempre por padrão
-        if(error){
-            return res.status(500).json({ message: 'Erro ao fazer login' });
-        }
-
-
-        //aqui verifica se houve alguma resposta da nossa requisição inicial, se houve algum retorno do select com cnpj
-        //se não houve, o result.lenght vai ser 0 e vai retornar para a aplicação erro
-        if(result.length === 0){
-            return res.status(401).json({ message: 'Nome de usuário ou senha incorretos' });
-
-        }
-        //caso seja maior q zero, vamos pegar a primeira posição do nosso array q armazena o resultado da query
-        //e armazenar em uma variavel chamada resquery para manipular os dados de retorno mais facilmente
-
-        const resquery = result[0];
-        
-
-        //aqui verificamos se a senha q o nosso usuario enviou da tela é diferente da que retornou do banco de dados, de acordo com o cnpj fornecido
-        //se nao for, retorna um código de erro junto com a mensagem de erro
-        if(senhaEmpresa !== resquery.senhaEmpresa){
-            return res.status(401).json({ message: 'Nome de usuário ou senha incorretos' });
-        }
-
-        //caso seja igual, pegamos o id e o nome enviados na query e mandamos de volta para tela
-
-        const id = resquery.idEmpresa;
-        const nmEmpresa = resquery.nomeEmpresa;
-        return res.status(200).json({retorno: 'Login bem sucedido', nmEmpresa,id});
-    })
-})
-
-
-//login coolaboradores
-app.post('/api/loginColaborador', (req, res)=>{
-    const {emailColaborador, senhaColaborador} = req.body;
-    pool.query(`SELECT  idColaborador, 
-                        nomeColaborador, 
-                        senhaColaborador, 
-                        e.nomeEmpresa as empresa 
-                FROM tbcolaborador c inner join tbempresa e on e.idempresa = c.idempresa where emailColaborador = ?`, [emailColaborador], (error,result) =>{
-        //quando o if tem como parametro somente uma variavel, verificamos se essa variavel retorna true ou false
-        //nessa relação com banco quando da algum erro no banco, error retorna true sempre por padrão
-        if(error){
-            return res.status(500).json({ message: 'Erro ao fazer login' });
-        }
-
-
-        //aqui verifica se houve alguma resposta da nossa requisição inicial, se houve algum retorno do select com cnpj
-        //se não houve, o result.lenght vai ser 0 e vai retornar para a aplicação erro
-        if(result.length === 0){
-            return res.status(401).json({ message: 'Email ou senha incorretos' });
-
-        }
-        //caso seja maior q zero, vamos pegar a primeira posição do nosso array q armazena o resultado da query
-        //e armazenar em uma variavel chamada resquery para manipular os dados de retorno mais facilmente
-
-        const resquery = result[0];
-        
-
-        //aqui verificamos se a senha q o nosso usuario enviou da tela é diferente da que retornou do banco de dados, de acordo com o email fornecido
-        //se nao for, retorna um código de erro junto com a mensagem de erro
-        if(senhaColaborador !== resquery.senhaColaborador){
-            return res.status(401).json({ message: 'Email ou senha incorretos' });
-        }
-
-        //caso seja igual, pegamos o id e o nome enviados na query e mandamos de volta para tela
-
-        const id = resquery.idColaborador;
-        const nmColaborador = resquery.nomeColaborador;
-        const nmEmpresa = resquery.empresa;
-        return res.status(200).json({retorno: 'Login bem sucedido', nmColaborador,id, nmEmpresa} );
-    })
-})
-
-//select colaboradores
-app.get('/api/colaboradores', (req, res) => {
-    pool.query('SELECT * FROM tbcolaborador', (error, results) => {
-        if (error) {
-            console.error(error);
-            return res.status(500);
-        }
-        return res.status(200).json(results);
-    });
 });
 
-//select empresas
-app.get('/api/empresa',(req,res) =>{
-    pool.query('select * from tbempresa', (error, results) =>{
-        if (error) {
-            console.error(error);
-            return res.status(500).json({ message: 'Erro ao buscar empresas' });
+//login empresa
+app.post('/api/loginEmpresa', async (req, res) => {
+    const { cnpjEmpresa, senhaEmpresa } = req.body;
+    try {
+        const [result] = await pool.query('SELECT idEmpresa, nomeEmpresa, senhaEmpresa FROM tbempresa where cnpjEmpresa = ?', [cnpjEmpresa]);
+        if (result.length === 0) {
+            return res.status(401).json({ message: 'Nome de usuário ou senha incorretos' });
         }
-        return res.status(200).json(results);
-    });
-})
+        const resquery = result[0];
+        if (senhaEmpresa !== resquery.senhaEmpresa) {
+            return res.status(401).json({ message: 'Nome de usuário ou senha incorretos' });
+        }
+        const id = resquery.idEmpresa;
+        const nmEmpresa = resquery.nomeEmpresa;
+        return res.status(200).json({ retorno: 'Login bem sucedido', nmEmpresa, id });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao fazer login' });
+    }
+});
+
+app.post('/api/loginColaborador', async (req, res) => {
+    const { email, senhaColaborador } = req.body;
+
+    const chamaProc = 'CALL loginColaborador(?, ?, @resposta)';
+    const pegaDadosProc = 'SELECT @resposta as resposta';
+
+    try {
+        // Chama a procedure
+        await pool.query(chamaProc, [email, senhaColaborador]);
+
+        // Executa a consulta para pegar o resultado da procedure
+        const [rows] = await pool.query(pegaDadosProc);
+        if(rows[0].resposta ==  '1'){
+            return res.status(401).json({message:"Usuário ou senha incorretos", resposta: rows[0].resposta})
+        }else if(rows[0].resposta ==  '2'){
+            return res.status(200).json({message:"Atualizar senha", resposta: rows[0].resposta })
+        }else if(rows[0].resposta ==  '3'){
+            return res.status(401).json({message:"Usuário ou senha incorretos", resposta: rows[0].resposta})
+
+        }else{
+            return res.status(200).json({message:"Bem vindo",resposta: rows[0].resposta });
+        }
+        
+    } catch (error) {
+        console.log('Erro na execução', error);
+        return res.status(500).json({ error: 'Erro ao executar a procedure ou o select' });
+    }
+});
+
+app.post('/api/buscarQuestionarioDetalhado', async (req, res) => {
+    const { idQuestionario, idColaborador } = req.body; // Remover idCategoria
+
+    const chamaProc = 'CALL buscarQuestionarioDetalhado(?, ?)';
+
+    try {
+        // Chama a procedure
+        const [results, fields] = await pool.query(chamaProc, [idQuestionario, idColaborador]);
+
+        // Verifica se há resultados e retorna o primeiro conjunto de resultados
+        if (results.length > 0) {
+            return res.status(200).json(results[0]);
+        } else {
+            return res.status(404).json({ message: 'Nenhum dado encontrado' });
+        }
+    } catch (error) {
+        console.log('Erro na execução', error);
+        return res.status(500).json({ error: 'Erro ao executar a procedure' });
+    }
+});
+
+
+
 
 // insert colaboradores
-app.post('/api/colaboradores', (req, res) => {
+app.post('/api/colaboradores', async (req, res) => {
     const colaboradores = req.body;
-
     if (!Array.isArray(colaboradores) || colaboradores.length === 0) {
-        return res.status(400).json({ message: 'Nenhum departamento fornecido para inserção' });
+        return res.status(400).json({ message: 'Nenhum colaborador fornecido para inserção' });
     }
-
     const valores = colaboradores.map(colaborador => [colaborador.nomeColaborador, colaborador.cargoColaborador, colaborador.emailColaborador, colaborador.senhaColaboradorPadrao, colaborador.idadeColaborador, colaborador.sexoColaborador, colaborador.idEmpresa]);
-    const query = ` INSERT INTO tbcolaborador (nomeColaborador, cargoColaborador, emailColaborador, senhaColaboradorPadrao, idadeColaborador, sexoColaborador, idEmpresa) VALUES ?`;
-    pool.query(query, [valores], (error, results, fields) => {
-        
-        if (error) {
-            console.error(error);
-            return res.status(500).json({ message: 'Erro ao inserir colaborador' });
-        }
+    const query = 'INSERT INTO tbcolaborador (nomeColaborador, cargoColaborador, emailColaborador, senhaColaboradorPadrao, idadeColaborador, sexoColaborador, idEmpresa) VALUES ?';
+    try {
+        await pool.query(query, [valores]);
         return res.status(200).json({ message: 'Colaborador inserido com sucesso' });
-    });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao inserir colaborador' });
+    }
 });
 
 //insert empresa
-app.post('/api/empresa', (req, res) => {
+app.post('/api/empresa', async (req, res) => {
     const { nomeempresa, contatoempresa, emailempresa, senhaempresa, cnpjempresa } = req.body;
-
     const query = 'INSERT INTO tbempresa (nomeempresa, contatoempresa, emailempresa, senhaempresa, cnpjempresa) VALUES (?, ?, ?, ?, ?)';
-    pool.query(query, [nomeempresa, contatoempresa, emailempresa, senhaempresa, cnpjempresa], (error, results, fields) => {
-        
-        if (error) {
-            console.error(error);
-            return res.status(500).json({ message: 'Erro ao inserir colaborador' });
-        }
+    try {
+        await pool.query(query, [nomeempresa, contatoempresa, emailempresa, senhaempresa, cnpjempresa]);
         return res.status(200).json({ message: 'Empresa cadastrada com sucesso' });
-    });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao inserir empresa' });
+    }
 });
 
 //insert departamento
-app.post('/api/departamento', (req, res) => {
-    const departamentos = req.body; // Recebe o array JSON de departamentos
-
-    // ve se o item enviado é diferente de array ou se o tamanho é igual a zero, se for ele retorna erro se nao prossegue a insercao
+app.post('/api/departamento', async (req, res) => {
+    const departamentos = req.body;
     if (!Array.isArray(departamentos) || departamentos.length === 0) {
         return res.status(400).json({ message: 'Nenhum departamento fornecido para inserção' });
     }
-
-    const query = 'INSERT INTO tbdepartamento (nomeDepartamento, idEmpresa) VALUES ?'; 
-    const values = departamentos.map(departamento => [departamento.nomeDepartamento, departamento.idEmpresa]); //extrai somente os valores q estavam contidos na variavel departamento, q recebia o json do corpo da requisicao
-    pool.query(query, [values], (error, results, fields) => {
-        if (error) {
-            console.error(error);
-            return res.status(500).json({ message: 'Erro ao inserir departamentos' });
-        }
+    const query = 'INSERT INTO tbdepartamento (nomeDepartamento, idEmpresa) VALUES ?';
+    const values = departamentos.map(departamento => [departamento.nomeDepartamento, departamento.idEmpresa]);
+    try {
+        await pool.query(query, [values]);
         return res.status(200).json({ message: 'Departamentos cadastrados com sucesso' });
-    });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao inserir departamentos' });
+    }
 });
 
 //insert cargo
-app.post('/api/cadastraCargo', (req, res) => {
-    const cargos = req.body; // Recebe o array JSON de departamentos
-
-    // ve se o item enviado é diferente de array ou se o tamanho é igual a zero, se for ele retorna erro se nao prossegue a insercao
+app.post('/api/cadastraCargo', async (req, res) => {
+    const cargos = req.body;
     if (!Array.isArray(cargos) || cargos.length === 0) {
-        return res.status(400).json({ message: 'Nenhum departamento fornecido para inserção' });
+        return res.status(400).json({ message: 'Nenhum cargo fornecido para inserção' });
     }
-
-    const query = 'INSERT INTO tbcargo (nomeCargo, idDepartamento, idEmpresa ) VALUES ?'; 
-    const values = cargos.map(cargo => [cargo.nomeCargo, cargo.idDepartamento, cargo.idEmpresa ]); //extrai somente os valores q estavam contidos na variavel departamento, q recebia o json do corpo da requisicao
-    pool.query(query, [values], (error, results, fields) => {
-        if (error) {
-            console.error(error);
-            return res.status(500).json({ message: 'Erro ao inserir departamentos' });
-        }
-        return res.status(200).json({ message: 'Departamentos cadastrados com sucesso' });
-    });
+    const query = 'INSERT INTO tbcargo (nomeCargo, idDepartamento, idEmpresa) VALUES ?';
+    const values = cargos.map(cargo => [cargo.nomeCargo, cargo.idDepartamento, cargo.idEmpresa]);
+    try {
+        await pool.query(query, [values]);
+        return res.status(200).json({ message: 'Cargos cadastrados com sucesso' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao inserir cargos' });
+    }
 });
 
 //insert perguntas
-app.post('/api/cadastraPerguntas', (req, res) => {
-    const perguntas = req.body; 
-
-
+app.post('/api/cadastraPerguntas', async (req, res) => {
+    const perguntas = req.body;
     if (!Array.isArray(perguntas)) {
         return res.status(400).json({ message: 'Nenhuma pergunta fornecida para inserção' });
     }
-
-    const query = 'INSERT INTO tbpergunta (dsPergunta, notaPergunta, idEmpresa, idCategoria ) VALUES ?'; 
-    const values = perguntas.map(pergunta => [pergunta.dsPergunta, pergunta.notaPergunta, pergunta.idEmpresa, pergunta.idCategoria ]); 
-    pool.query(query, [values], (error, results, fields) => {
-        if (error) {
-            console.error(error);
-            return res.status(500).json({ message: 'Erro ao inserir perguntas' });
-        }
+    const query = 'INSERT INTO tbpergunta (dsPergunta, notaPergunta, idEmpresa, idCategoria) VALUES ?';
+    const values = perguntas.map(pergunta => [pergunta.dsPergunta, pergunta.notaPergunta, pergunta.idEmpresa, pergunta.idCategoria]);
+    try {
+        await pool.query(query, [values]);
         return res.status(200).json({ message: 'Perguntas cadastradas com sucesso' });
-    });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao inserir perguntas' });
+    }
 });
-
 
 //retorna cargos
-app.post('/api/retornaCargos', (req, res) =>{
-    const {idEmpresa} = req.body;
-    pool.query(`SELECT 	idcargo as Id, 
-                        c.nomecargo as Cargo, 
-                        d.nomeDepartamento as Departamento 
-                FROM tbcargo c 
-                INNER JOIN tbdepartamento d on d.iddepartamento = c.iddepartamento
-                WHERE c.idempresa = ?`, [idEmpresa], (error,result) =>{
-        if(error){
-            console.log(error)
-            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
-           
-        }
-        let arraydata = []
-        const quant = result.length;
-        for(i = 0; i < result.length; i++){
-            arraydata.push( result[i] )
-        }
-        res.status(200).json({ cargos: arraydata, total :quant });
-    })
-
+app.post('/api/retornaCargos', async (req, res) => {
+    const { idEmpresa } = req.body;
+    try {
+        const [result] = await pool.query(`
+            SELECT idcargo as Id, 
+                   c.nomecargo as Cargo, 
+                   d.nomeDepartamento as Departamento 
+            FROM tbcargo c 
+            INNER JOIN tbdepartamento d on d.iddepartamento = c.iddepartamento
+            WHERE c.idempresa = ?`, [idEmpresa]);
+        res.status(200).json({ cargos: result, total: result.length });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao trazer cargos' });
+    }
 });
 
-
-app.post('/api/retornaDepartamentos', (req, res) =>{
-    const {idEmpresa} = req.body;
-    pool.query(`SELECT
-                        d.idDepartamento as Id, 
-                        d.nomeDepartamento as Departamento, 
-                        c.nomecolaborador as Responsavel 
-                FROM tbdepartamento d left JOIN tbcolaborador c ON c.idcolaborador = d.idcolaboradorresponsavel 
-                where d.idEmpresa = ?`, [idEmpresa], (error,result) =>{
-        if(error){
-            return res.status(500).json({ message: 'Erro ao fazer login' });
-        }
-        let arraydata = []
-        const quant = result.length;
-        for(i = 0; i < result.length; i++){
-            arraydata.push( result[i] )
-        }
-        res.status(200).json({ departamentos: arraydata, total :quant });
-    })
-
+//retorna departamentos
+app.post('/api/retornaDepartamentos', async (req, res) => {
+    const { idEmpresa } = req.body;
+    try {
+        const [result] = await pool.query(`
+            SELECT d.idDepartamento as Id, 
+                   d.nomeDepartamento as Departamento, 
+                   c.nomecolaborador as Responsavel 
+            FROM tbdepartamento d 
+            LEFT JOIN tbcolaborador c ON c.idcolaborador = d.idcolaboradorresponsavel 
+            WHERE d.idEmpresa = ?`, [idEmpresa]);
+        res.status(200).json({ departamentos: result, total: result.length });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao trazer departamentos' });
+    }
 });
 
-app.post('/api/retornaColaboradores', (req, res) =>{
-    const {idEmpresa} = req.body;
-    pool.query(`select 	cl.idcolaborador as Id,
-                        cl.nomecolaborador as Nome,
-                        cg.nomeCargo as Cargo,
-                        cl.emailcolaborador as Email,
-                        cl.idadeColaborador as Idade
-                from tbcolaborador cl 
-                left join tbcargo cg on cg.idcargo = cl.cargocolaborador
-                where cl.idempresa = ? order by 1 desc`, [idEmpresa], (error,result) =>{
-        if(error){
-            console.log(error)
-            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
-           
-        }
-        let arraydata = []
-        const quant = result.length;
-        for(i = 0; i < result.length; i++){
-            arraydata.push( result[i] )
-        }
-        res.status(200).json({ colaboradores: arraydata});
-    })
-
+//retorna colaboradores
+app.post('/api/retornaColaboradores', async (req, res) => {
+    const { idEmpresa } = req.body;
+    try {
+        const [result] = await pool.query(`
+            SELECT cl.idcolaborador as Id,
+                   cl.nomecolaborador as Nome,
+                   cg.nomeCargo as Cargo,
+                   cl.emailcolaborador as Email,
+                   cl.idadeColaborador as Idade
+            FROM tbcolaborador cl 
+            LEFT JOIN tbcargo cg on cg.idcargo = cl.cargocolaborador
+            WHERE cl.idempresa = ? 
+            ORDER BY 1 DESC`, [idEmpresa]);
+        res.status(200).json({ colaboradores: result });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao trazer colaboradores' });
+    }
 });
 
-app.post('/api/retornaParametrosTelas', (req,res) =>{
-    const {idEmpresa} = req.body;
-    pool.query(`select  (select count(d.iddepartamento) 
-                            from tbdepartamento d where d.idempresa = e.idempresa) as quantd,
-                        (select count(cg.idcargo) 
-                            from tbcargo cg where cg.idempresa = e.idempresa) as quantcg, 
-                        (select count(cl.idcolaborador) 
-                            from tbcolaborador cl where cl.idempresa = e.idempresa) as quantcl,
-                        (select count(pg.idpergunta)
-                            from tbpergunta pg where pg.idempresa = e.idempresa) as quantpg 
-                from tbempresa e where e.idempresa = ?`, [idEmpresa], (error, result) =>{
-                
-                    if(error){
-                        console.log(error)
-                        return res.status(500).json({ message: 'Erro ao buscar empresas' });
-                        
-                    }
-
-                    const retorno = result[0]
-                    res.status(200).json({retorno})
-            })
-})
-
-app.post('/api/retornaDepartamentoSelect', (req,res) =>{
-
-
-    const {idEmpresa} = req.body;
-    pool.query(`select idDepartamento as Id, nomeDepartamento as Departamento from tbdepartamento where idempresa = ?`, [idEmpresa], (error, result) =>{
-                
-                    if(error){
-                        return res.status(500).json({ message: 'Erro ao buscar empresas' });
-                    }
-
-                    const retorno = result
-                    res.status(200).json({retorno})
-            })
-})
-
-
-app.post('/api/retornaCargoSelect', (req, res) =>{
-    const {idEmpresa} = req.body;
-    pool.query(`SELECT 	idcargo as Id, 
-                        c.nomecargo as Cargo 
-                FROM tbcargo c 
-                WHERE c.idempresa = ?`, [idEmpresa], (error,result) =>{
-        if(error){
-            console.log(error)
-            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
-           
-        }
-        let arraydata = []
-        const quant = result.length;
-        for(i = 0; i < result.length; i++){
-            arraydata.push( result[i] )
-        }
-        res.status(200).json({ cargos: arraydata});
-    })
-
+//retorna parametros telas
+app.post('/api/retornaParametrosTelas', async (req, res) => {
+    const { idEmpresa } = req.body;
+    try {
+        const [result] = await pool.query(`
+            SELECT (SELECT count(d.iddepartamento) FROM tbdepartamento d WHERE d.idempresa = e.idempresa) as quantd,
+                   (SELECT count(cg.idcargo) FROM tbcargo cg WHERE cg.idempresa = e.idempresa) as quantcg, 
+                   (SELECT count(cl.idcolaborador) FROM tbcolaborador cl WHERE cl.idempresa = e.idempresa) as quantcl,
+                   (SELECT count(pg.idpergunta) FROM tbpergunta pg WHERE pg.idempresa = e.idempresa) as quantpg 
+            FROM tbempresa e 
+            WHERE e.idempresa = ?`, [idEmpresa]);
+        res.status(200).json({ retorno: result[0] });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao buscar empresas' });
+    }
 });
 
-
-
-app.get('/api/retornaCategoriaSelect', (req, res) =>{
-    pool.query(`SELECT 	idCategoria as Id, 
-                        nomeCategoria as Categoria 
-                FROM tbcategoria c `,(error,result) =>{
-        if(error){
-            console.log(error)
-            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
-           
-        }
-        let arraydata = []
-        for(i = 0; i < result.length; i++){
-            arraydata.push( result[i] )
-        }
-        res.status(200).json({ categorias: arraydata});
-    })
-
+//retorna departamento select
+app.post('/api/retornaDepartamentoSelect', async (req, res) => {
+    const { idEmpresa } = req.body;
+    try {
+        const [result] = await pool.query(`
+            SELECT idDepartamento as Id, nomeDepartamento as Departamento 
+            FROM tbdepartamento 
+            WHERE idempresa = ?`, [idEmpresa]);
+        res.status(200).json({ retorno: result });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao buscar departamentos' });
+    }
 });
 
-
-
-app.post('/api/retornaPerguntas', (req, res) =>{
-    const {idEmpresa} = req.body;
-    pool.query(`select 	p.idPergunta as Id,
-                        p.dsPergunta as Pergunta,
-                        c.nomeCategoria as Categoria
-                from tbpergunta p 
-                inner join tbcategoria c on c.idcategoria = p.idcategoria
-                where p.idempresa = ? order by 1 desc`, [idEmpresa], (error,result) =>{
-        if(error){
-            console.log(error)
-            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
-           
-        }
-        let arraydata = []
-        const quant = result.length;
-        for(i = 0; i < result.length; i++){
-            arraydata.push( result[i] )
-        }
-        res.status(200).json({ perguntas: arraydata});
-    })
-
+//retorna cargo select
+app.post('/api/retornaCargoSelect', async (req, res) => {
+    const { idEmpresa } = req.body;
+    try {
+        const [result] = await pool.query(`
+            SELECT idcargo as Id, 
+                   c.nomecargo as Cargo 
+            FROM tbcargo c 
+            WHERE c.idempresa = ?`, [idEmpresa]);
+        res.status(200).json({ cargos: result });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao buscar cargos' });
+    }
 });
 
-
-app.post('/api/retornaPerguntasCategoria', (req, res) =>{
-    const {idEmpresa, idCategoria} = req.body;
-    pool.query(`select 	idPergunta as Id,
-                        dsPergunta as Pergunta
-                from tbpergunta where idempresa = ? and idcategoria = ?`, [idEmpresa, idCategoria], (error,result) =>{
-        if(error){
-            console.log(error)
-            return res.status(500).json({ message: 'Erro ao trazer departamentos' });
-           
-        }
-        let arraydata = []
-        const quant = result.length;
-        for(i = 0; i < result.length; i++){
-            arraydata.push( result[i] )
-        }
-        res.status(200).json({ perguntas: arraydata});
-    })
-
+//retorna categoria select
+app.get('/api/retornaCategoriaSelect', async (req, res) => {
+    try {
+        const [result] = await pool.query(`
+            SELECT idCategoria as Id, 
+                   nomeCategoria as Categoria 
+            FROM tbcategoria c`);
+        res.status(200).json({ categorias: result });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao buscar categorias' });
+    }
 });
 
+//retorna perguntas
+app.post('/api/retornaPerguntas', async (req, res) => {
+    const { idEmpresa } = req.body;
+    try {
+        const [result] = await pool.query(`
+            SELECT p.idPergunta as Id,
+                   p.dsPergunta as Pergunta,
+                   c.nomeCategoria as Categoria
+            FROM tbpergunta p 
+            INNER JOIN tbcategoria c on c.idcategoria = p.idcategoria
+            WHERE p.idempresa = ? 
+            ORDER BY 1 DESC`, [idEmpresa]);
+        res.status(200).json({ perguntas: result });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao buscar perguntas' });
+    }
+});
 
-app.post('/api/cadastraQuestionario', (req, res) =>{
-    const { nomeQuestionario, idEmpresa, idCategoria, idPergunta1, idPergunta2, idPergunta3, idPergunta4,idPergunta5 } = req.body;
+//retorna perguntas por categoria
+app.post('/api/retornaPerguntasCategoria', async (req, res) => {
+    const { idEmpresa, idCategoria } = req.body;
+    try {
+        const [result] = await pool.query(`
+            SELECT idPergunta as Id,
+                   dsPergunta as Pergunta
+            FROM tbpergunta 
+            WHERE idempresa = ? 
+              AND idcategoria = ?`, [idEmpresa, idCategoria]);
+        res.status(200).json({ perguntas: result });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao buscar perguntas por categoria' });
+    }
+});
 
-    const query = ` INSERT INTO tbquestionario (nomeQuestionario, idEmpresa, idCategoria, idPergunta1, idPergunta2, idPergunta3, idPergunta4,idPergunta5) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    pool.query(query, [nomeQuestionario, idEmpresa, idCategoria, idPergunta1, idPergunta2, idPergunta3, idPergunta4,idPergunta5], (error, results, fields) => {
+//cadastra questionario
+app.post('/api/cadastraQuestionario', async (req, res) => {
+    const { nomeQuestionario, idEmpresa, idCategoria, idPergunta1, idPergunta2, idPergunta3, idPergunta4, idPergunta5 } = req.body;
+    const query = `
+        INSERT INTO tbquestionario (nomeQuestionario, idEmpresa, idCategoria, idPergunta1, idPergunta2, idPergunta3, idPergunta4, idPergunta5) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+    try {
+        await pool.query(query, [nomeQuestionario, idEmpresa, idCategoria, idPergunta1, idPergunta2, idPergunta3, idPergunta4, idPergunta5]);
+        return res.status(200).json({ message: 'Questionário cadastrado com sucesso' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao cadastrar questionário' });
+    }
+});
+
+//retorna questionarios
+app.post('/api/retornaQuestionarios', async (req, res) => {
+    const { idEmpresa } = req.body;
+    try {
+        const [result] = await pool.query(`
+            SELECT idQuestionario as Id,
+                   nomeQuestionario as Nome,
+                   c.nomeCategoria as Categoria
+            FROM tbquestionario q 
+            INNER JOIN tbcategoria c on c.idcategoria = q.idcategoria
+            WHERE idempresa = ?`, [idEmpresa]);
+        res.status(200).json({ questionarios: result });
+    } catch (error) {
+        return res.status(500).json({ message: 'Erro ao buscar questionários' });
+    }
+});
+
+app.put('/api/alteraSenha', async (req, res) =>{
+    const { email, senhaColaboradorAtual } = req.body;
+
+    const chamaProc = 'CALL alteraSenha(?, ?, @resposta)';
+    const pegaDadosProc = 'SELECT @resposta as resposta';
+
+    try {
+        // Chama a procedure
+        await pool.query(chamaProc, [email, senhaColaboradorAtual]);
+
+        // Executa a consulta para pegar o resultado da procedure
+        const [rows] = await pool.query(pegaDadosProc);
+        if(rows[0].resposta ==  '0'){
+            return res.status(401).json({message:"Email incorreto", resposta: rows[0].resposta})
+        }else if(rows[0].resposta ==  '1'){
+            return res.status(200).json({message:"Senha alterada!" })
+        }else{
+            return res.status(500).json({message:"Erro Sinistro" })
+        }
         
-        if (error) {
-            console.error(error);
-            return res.status(500).json({ message: 'Erro ao inserir questionario' });
-        }
-        return res.status(200).json({ message: 'Questionario cadastrado com sucesso' });
-    });
+    } catch (error) {
+        console.log('Erro na execução', error);
+        return res.status(500).json({ error: 'Erro ao executar a procedure ou o select' });
+    }
+})
 
+app.post('/api/buscarAvaliados', async (req,res) =>{
+    const{idColaborador} = req.body;
+
+    try{
+        const [rows] = await pool.query(`SELECT cb.idcolaborador, cb.nomecolaborador 
+        FROM tbdepartamento d 
+        INNER JOIN tbcargo c ON c.iddepartamento = d.iddepartamento
+        INNER JOIN tbcolaborador cb ON cb.cargoColaborador = c.idcargo
+        WHERE cb.idcolaborador <> ?;`, [idColaborador]);
+
+        // Enviar a resposta com os dados
+        return res.status(200).json(rows);
+    } catch (err) {
+        console.log('Erro ao executar a consulta:', err);
+        return res.status(500).json({ error: 'Erro ao executar a consulta' });
+    }
+})
+
+
+app.post('/api/enviarResposta', async (req, res) => {
+    const {
+        idQuestionario,
+        idColaboradorAvaliando,
+        idColaboradorAvaliado,
+        notaPergunta1,
+        notaPergunta2,
+        notaPergunta3,
+        notaPergunta4,
+        notaPergunta5,
+        comentario,
+        idCategoria
+    } = req.body;
+
+    const chamaProc = 'CALL inserirResposta(?, ?, ?, ?, ?, ?, ?, ?, ?,?)';
+
+    try {
+        // Chama a procedure para inserir os dados
+        const result = await pool.query(chamaProc, [
+            idQuestionario,
+            idColaboradorAvaliando,
+            idColaboradorAvaliado,
+            notaPergunta1,
+            notaPergunta2,
+            notaPergunta3,
+            notaPergunta4,
+            notaPergunta5,
+            comentario,
+            idCategoria
+        ]);
+
+        return res.status(200).json({ message: 'Resposta enviada com sucesso', result });
+    } catch (error) {
+        console.log('Erro na execução', error);
+        return res.status(500).json({ error: 'Erro ao executar a procedure' });
+    }
 });
 
 
-app.post('/api/retornaQuestionarios', (req, res) =>{
-    const {idEmpresa} = req.body;
-    pool.query(`select 	idQuestionario as Id,
-                        nomeQuestionario as Nome,
-                        c.nomeCategoria as Categoria
-                from tbquestionario q 
-                inner join tbcategoria c on c.idcategoria = q.idcategoria
-                where idempresa = ?`, [idEmpresa], (error,result) =>{
-        if(error){
-            console.log(error)
-            return res.status(500).json({ message: 'Erro ao trazer questionarios' });
-           
-        }
-        let arraydata = []
-        const quant = result.length;
-        for(i = 0; i < result.length; i++){
-            arraydata.push( result[i] )
-        }
-        res.status(200).json({ questionarios: arraydata});
-    })
 
-});
 
 app.listen(port, () => {
     console.log(`Servidor Node.js está executando na porta ${port}`);
 });
-
-
- 
