@@ -430,6 +430,46 @@ app.post('/api/enviarResposta', async (req, res) => {
     }
 });
 
+app.post('/api/notasFuncionarios', async (req, res) => {
+    const { idEmpresa } = req.body;
+
+        const chamaProcNotasFuncionarios = 'CALL getNotasFuncionarios(?)'
+        try{
+            const notaFuncionarios = await pool.query(chamaProcNotasFuncionarios, [idEmpresa]);
+            const notas = notaFuncionarios[0][0]
+            return res.status(200).json({ message: 'Resposta enviada com sucesso', notas});
+        }catch(errFunc){
+            return res.status(500).json({ error: 'Erro ao executar a procedure' });
+        }
+    });
+
+
+app.post('/api/notasDepartamento', async (req, res) => {
+    const { idEmpresa } = req.body;
+
+        const chamaProcNotasDepartamento = 'CALL getNotasDepartamentos(?)'
+        try{
+            const notasDepartamento = await pool.query(chamaProcNotasDepartamento, [idEmpresa]);
+            const notas = notasDepartamento[0][0]
+            return res.status(200).json({ message: 'Resposta enviada com sucesso', notas });
+        }catch(errFunc){
+            console.log(errFunc)
+            return res.status(500).json({ error: 'Erro ao executar a procedure' });
+        }
+});
+
+app.post('/api/notaEmpresaGeral', async (req, res) => {
+    const { idEmpresa } = req.body;
+
+        const chamaProcNotaGeralEmpresa = 'CALL getMediaEmpresa(?)'
+        try{
+            const notaEmpresa= await pool.query(chamaProcNotaGeralEmpresa, [idEmpresa]);
+            const notas = notaEmpresa[0][0][0]
+            return res.status(200).json({ message: 'Resposta enviada com sucesso', notas });
+        }catch(errFunc){
+            return res.status(500).json({ error: 'Erro ao executar a procedure' });
+        }
+});
 
 
 app.listen(port, () => {
