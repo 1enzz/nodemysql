@@ -377,11 +377,16 @@ app.post('/api/buscarAvaliados', async (req,res) =>{
     const{idColaborador} = req.body;
 
     try{
-        const [rows] = await pool.query(`SELECT cb.idcolaborador, cb.nomecolaborador 
+        const [rows] = await pool.query(`
+SELECT cb.idcolaborador, cb.nomecolaborador 
         FROM tbdepartamento d 
         INNER JOIN tbcargo c ON c.iddepartamento = d.iddepartamento
         INNER JOIN tbcolaborador cb ON cb.cargoColaborador = c.idcargo
-        WHERE cb.idcolaborador <> ?;`, [idColaborador]);
+        WHERE cb.idcolaborador <> ? and d.iddepartamento = (
+select d.iddepartamento from tbcargo cg
+inner join tbdepartamento d on d.iddepartamento = cg.iddepartamento
+inner join tbcolaborador c on c.cargocolaborador = cg.idcargo
+where idcolaborador = ?);`, [idColaborador, idColaborador]);
 
         // Enviar a resposta com os dados
         return res.status(200).json(rows);
@@ -471,6 +476,33 @@ app.post('/api/notaEmpresaGeral', async (req, res) => {
         }
 });
 
+
+app.post('/api/comentarios', async (req,res) =>{
+    const {idEmpresa} = req.body;
+    try{
+        const [rows] = await pool.query(`
+            SELECT JSON_ARRAYAGG(
+                JSON_OBJECT(
+                    'nomecategoria', nomecategoria,
+                    'comentarios', comentarios
+                )
+            ) AS resultado
+            FROM (
+                SELECT c.nomecategoria, 
+                       JSON_ARRAYAGG(RTRIM(r.comentario)) AS comentarios
+                FROM tbresposta r
+                INNER JOIN tbcategoria c ON c.idcategoria = r.idcategoria
+                inner join tbquestionario q on q.idquestionario = r.idquestionario
+            	where q.idempresa = ?
+                GROUP BY c.nomecategoria
+            ) AS temp;`, [idEmpresa])
+            return res.status(200).json(rows)
+    }catch(err){
+        console.log('Erro ao buscar empresa:', err);
+        return res.status(500).json({ error: 'Erro ao executar a consulta' });
+
+    }
+})
 
 app.listen(port, () => {
     console.log(`Servidor Node.js está executando na porta ${port}`);
