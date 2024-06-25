@@ -493,8 +493,9 @@ app.post('/api/comentarios', async (req,res) =>{
                 FROM tbresposta r
                 INNER JOIN tbcategoria c ON c.idcategoria = r.idcategoria
                 inner join tbquestionario q on q.idquestionario = r.idquestionario
-            	where q.idempresa = ?
+            	where q.idempresa = ? and r.comentario <> ''
                 GROUP BY c.nomecategoria
+                limit 10
             ) AS temp;`, [idEmpresa])
             return res.status(200).json(rows)
     }catch(err){
