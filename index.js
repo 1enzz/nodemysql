@@ -7,7 +7,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const app = express();
 
-const port = 3000; // Escolha a porta que deseja usar para o servidor
+const port = 3000; 
 app.use(bodyParser.json());
 app.use(cors());
 
@@ -47,10 +47,10 @@ app.post('/api/loginColaborador', async (req, res) => {
     const pegaDadosProc = 'SELECT @resposta as resposta';
 
     try {
-        // Chama a procedure
+      
         await pool.query(chamaProc, [email, senhaColaborador]);
 
-        // Executa a consulta para pegar o resultado da procedure
+       
         const [rows] = await pool.query(pegaDadosProc);
         if(rows[0].resposta ==  '1'){
             return res.status(401).json({message:"Usuário ou senha incorretos", resposta: rows[0].resposta})
@@ -70,15 +70,15 @@ app.post('/api/loginColaborador', async (req, res) => {
 });
 
 app.post('/api/buscarQuestionarioDetalhado', async (req, res) => {
-    const { idQuestionario, idColaborador } = req.body; // Remover idCategoria
+    const { idQuestionario, idColaborador } = req.body; 
 
     const chamaProc = 'CALL buscarQuestionarioDetalhado(?, ?)';
 
     try {
-        // Chama a procedure
+    
         const [results, fields] = await pool.query(chamaProc, [idQuestionario, idColaborador]);
 
-        // Verifica se há resultados e retorna o primeiro conjunto de resultados
+
         if (results.length > 0) {
             return res.status(200).json(results[0]);
         } else {
@@ -354,10 +354,9 @@ app.put('/api/alteraSenha', async (req, res) =>{
     const pegaDadosProc = 'SELECT @resposta as resposta';
 
     try {
-        // Chama a procedure
+e
         await pool.query(chamaProc, [email, senhaColaboradorAtual]);
 
-        // Executa a consulta para pegar o resultado da procedure
         const [rows] = await pool.query(pegaDadosProc);
         if(rows[0].resposta ==  '0'){
             return res.status(401).json({message:"Email incorreto", resposta: rows[0].resposta})
@@ -495,8 +494,9 @@ app.post('/api/comentarios', async (req,res) =>{
                 inner join tbquestionario q on q.idquestionario = r.idquestionario
             	where q.idempresa = ? and r.comentario <> ''
                 GROUP BY c.nomecategoria
-                limit 10
-            ) AS temp;`, [idEmpresa])
+                
+            ) AS temp
+             limit 5;`, [idEmpresa])
             return res.status(200).json(rows)
     }catch(err){
         console.log('Erro ao buscar empresa:', err);
